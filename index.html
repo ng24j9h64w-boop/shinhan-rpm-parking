@@ -461,8 +461,8 @@ function initMap() {
     return;
   }
   map = L.map('map', { zoomControl: true }).setView([37.55, 126.98], 11);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-    attribution: '&copy; OpenStreetMap &copy; CARTO',
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors',
     maxZoom: 19
   }).addTo(map);
   markerLayer = L.layerGroup().addTo(map);
