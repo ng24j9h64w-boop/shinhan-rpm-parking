@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="RPM+ 주차찾기">
+<title>신한 RPM+ Platinum# 무료주차 찾기</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<style>
+  :root {
+    --bg: #F2F4F7;
+    --card: #FFFFFF;
+    --primary: #0046FF;
+    --primary-soft: #EEF3FF;
+    --accent: #0B1B3D;
+    --text: #111827;
+    --muted: #6B7280;
+    --border: #E5E7EB;
+    --warn-bg: #FFF7ED;
+    --warn-text: #C2410C;
+    --ktx-bg: #ECFDF5;
+    --ktx-text: #047857;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", "Noto Sans KR", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding-bottom: calc(28px + var(--safe-bottom));
+    line-height: 1.45;
+  }
+  header {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    background: rgba(255,255,255,0.95);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: calc(12px + var(--safe-top)) 16px 12px;
+  }
+  .top-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .brand { display: flex; align-items: center; gap: 8px; }
+  .badge-card {
+    background: var(--accent);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 8px;
+    border-radius: 6px;
+  }
+  h1 { font-size: 17px; font-weight: 800; margin: 0; letter-spacing: -0.3px; }
+  .btn-rule {
+    background: var(--primary-soft);
+    color: var(--primary);
+    border: none;
+    border-radius: 999px;
+    padding: 7px 12px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .search-wrap { display: flex; gap: 8px; align-items: center; }
+  .input-box { flex: 1; position: relative; display: flex; align-items: center; }
+  .input-box input {
+    width: 100%;
+    height: 44px;
+    border: 1.5px solid #D1D5DB;
+    border-radius: 12px;
+    padding: 0 36px 0 14px;
+    font-size: 15px;
+    background: #fff;
+    color: var(--text);
+    outline: none;
+    -webkit-appearance: none;
+  }
+  .input-box input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(0,70,255,0.12); }
+  .clear-btn {
+    position: absolute;
+    right: 8px;
+    width: 26px;
+    height: 26px;
+    border: none;
+    background: #E5E7EB;
+    color: #4B5563;
+    border-radius: 50%;
+    font-size: 14px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+  .btn-search {
+    height: 44px;
+    padding: 0 16px;
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .btn-gps {
+    height: 44px;
+    width: 44px;
+    background: #fff;
+    border: 1.5px solid #D1D5DB;
+    border-radius: 12px;
+    font-size: 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .chips {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding: 10px 16px 4px;
+    scrollbar-width: none;
+  }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip {
+    background: #fff;
+    border: 1px solid var(--border);
+    color: #374151;
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  main { padding: 10px 16px 0; max-width: 680px; margin: 0 auto; }
+
+  .map-wrap {
+    position: relative;
+    background: #E5E7EB;
+    border-radius: 16px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    margin-bottom: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  }
+  #map {
+    width: 100%;
+    height: 270px;
+    z-index: 1;
+    transition: height 0.2s ease;
+  }
+  #map.expanded { height: 420px; }
+  .map-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: #fff;
+    border-top: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .map-legend { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 4px; }
+  .map-toggle {
+    background: var(--primary-soft);
+    color: var(--primary);
+    border: none;
+    border-radius: 8px;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .status-banner {
+    background: var(--primary-soft);
+    color: #1E3A8A;
+    border-radius: 12px;
+    padding: 10px 14px;
+    font-size: 13px;
+    margin-bottom: 12px;
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .status-banner.show { display: flex; }
+
+  .best-card {
+    background: linear-gradient(135deg, #0B1B3D 0%, #1E3A8A 100%);
+    color: #fff;
+    border-radius: 18px;
+    padding: 16px;
+    margin-bottom: 14px;
+    box-shadow: 0 8px 20px rgba(11,27,61,0.18);
+    cursor: pointer;
+    display: none;
+  }
+  .best-card.show { display: block; }
+  .best-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .best-label { font-size: 11px; font-weight: 800; background: rgba(255,255,255,0.2); padding: 3px 8px; border-radius: 999px; }
+  .best-dist { font-size: 14px; font-weight: 800; color: #93C5FD; }
+  .best-title { font-size: 19px; font-weight: 800; margin: 2px 0 4px; }
+  .best-addr { font-size: 13px; opacity: 0.88; margin-bottom: 8px; }
+  .best-meta { display: flex; flex-wrap: wrap; gap: 6px; font-size: 12px; }
+  .best-pill { background: rgba(255,255,255,0.14); padding: 4px 8px; border-radius: 8px; }
+
+  .section-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--muted);
+    margin: 6px 2px 8px;
+    display: flex;
+    justify-content: space-between;
+  }
+  .list { display: flex; flex-direction: column; gap: 10px; }
+  .card {
+    background: var(--card);
+    border-radius: 16px;
+    padding: 14px 15px;
+    border: 1px solid var(--border);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+    cursor: pointer;
+  }
+  .card:active { transform: scale(0.99); }
+  .card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 4px; }
+  .card-title { font-size: 16px; font-weight: 800; color: var(--text); }
+  .dist-badge { background: var(--primary-soft); color: var(--primary); font-size: 12px; font-weight: 800; padding: 3px 8px; border-radius: 8px; white-space: nowrap; }
+  .card-addr { font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+  .tags { display: flex; flex-wrap: wrap; gap: 5px; }
+  .tag { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px; background: #F3F4F6; color: #374151; }
+  .tag.ktx { background: var(--ktx-bg); color: var(--ktx-text); }
+  .tag.warn { background: var(--warn-bg); color: var(--warn-text); }
+
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(17,24,39,0.52);
+    z-index: 60;
+    display: none;
+    align-items: flex-end;
+    justify-content: center;
+  }
+  .overlay.open { display: flex; }
+  .sheet {
+    background: #fff;
+    width: 100%;
+    max-width: 680px;
+    max-height: 88vh;
+    border-radius: 22px 22px 0 0;
+    padding: 12px 18px calc(24px + var(--safe-bottom));
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    animation: slideUp 0.2s ease-out;
+  }
+  @keyframes slideUp { from { transform: translateY(30px); opacity: 0.7; } to { transform: translateY(0); opacity: 1; } }
+  .grabber { width: 40px; height: 4px; background: #D1D5DB; border-radius: 999px; margin: 0 auto 14px; }
+  .sheet-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
+  .sheet-title { font-size: 20px; font-weight: 800; margin: 0; }
+  .btn-close { background: #F3F4F6; border: none; width: 32px; height: 32px; border-radius: 50%; font-size: 16px; cursor: pointer; flex-shrink: 0; }
+  .info-box { background: #F9FAFB; border: 1px solid var(--border); border-radius: 14px; padding: 12px 14px; margin-bottom: 12px; }
+  .info-row { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid #EEF0F3; font-size: 13.5px; }
+  .info-row:last-child { border-bottom: none; }
+  .info-k { color: var(--muted); font-weight: 600; flex-shrink: 0; }
+  .info-v { color: var(--text); font-weight: 700; text-align: right; }
+  .note-block { background: var(--warn-bg); border: 1px solid #FED7AA; border-radius: 14px; padding: 12px 14px; margin-bottom: 12px; }
+  .note-block h3, .common-block h3 { font-size: 13.5px; font-weight: 800; margin: 0 0 8px; }
+  .note-block h3 { color: var(--warn-text); }
+  .common-block { background: #F3F4F6; border-radius: 14px; padding: 12px 14px; margin-bottom: 14px; }
+  .note-block ul, .common-block ul { margin: 0; padding-left: 18px; font-size: 13px; color: #374151; }
+  .note-block li, .common-block li { margin-bottom: 5px; }
+  .map-btns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 8px; }
+  .map-btn {
+    display: flex; align-items: center; justify-content: center; height: 44px;
+    border-radius: 12px; text-decoration: none; font-size: 13px; font-weight: 800;
+    border: 1px solid var(--border); color: var(--text); background: #fff;
+  }
+  .map-btn.naver { background: #03C75A; color: #fff; border-color: #03C75A; }
+  .map-btn.kakao { background: #FEE500; color: #191919; border-color: #FEE500; }
+  .map-btn.apple { background: #111827; color: #fff; border-color: #111827; }
+  .copy-btn {
+    width: 100%; height: 42px; border-radius: 12px; border: 1px solid var(--border);
+    background: #fff; font-size: 13.5px; font-weight: 700; cursor: pointer; color: var(--text);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="top-row">
+    <div class="brand">
+      <span class="badge-card">신한 RPM+ Platinum#</span>
+      <h1>무료주차 찾기</h1>
+    </div>
+    <button class="btn-rule" onclick="openCommonRules()">공통 유의사항</button>
+  </div>
+  <div class="search-wrap">
+    <div class="input-box">
+      <input id="q" type="search" placeholder="갈 곳 입력 (예: 코엑스, 성심당, 서울역, 수원)" enterkeyhint="search" autocomplete="off">
+      <button id="clearBtn" class="clear-btn" onclick="clearSearch()" aria-label="지우기">×</button>
+    </div>
+    <button class="btn-search" onclick="runSearch()">검색</button>
+    <button class="btn-gps" onclick="useMyLocation()" title="내 현재 위치 기준" aria-label="내 위치">📍</button>
+  </div>
+</header>
+
+<div class="chips" id="chips">
+  <button class="chip active" data-filter="all">전체 32</button>
+  <button class="chip" data-filter="서울">서울</button>
+  <button class="chip" data-filter="KTX역사">KTX역사</button>
+  <button class="chip" data-filter="경기">경기·분당</button>
+  <button class="chip" data-filter="대전·충청">대전·충청</button>
+  <button class="chip" data-filter="부산·울산">부산·울산</button>
+  <button class="chip" data-filter="대구·경북">대구·포항</button>
+  <button class="chip" data-filter="호남">전주</button>
+</div>
+
+<main>
+  <div id="mapWrap" class="map-wrap">
+    <div id="map"></div>
+    <div class="map-bar">
+      <div class="map-legend">
+        <span><i class="dot" style="background:#0046FF"></i>중심가</span>
+        <span><i class="dot" style="background:#059669"></i>KTX역사</span>
+        <span><i class="dot" style="background:#F97316"></i>최단 추천</span>
+        <span><i class="dot" style="background:#DC2626"></i>목적지</span>
+      </div>
+      <button id="mapSizeBtn" class="map-toggle" onclick="toggleMapSize()">지도 크게</button>
+    </div>
+  </div>
+
+  <div id="statusBanner" class="status-banner">
+    <span id="statusText"></span>
+    <button onclick="resetSort()" style="background:none;border:none;color:#0046FF;font-weight:700;font-size:12px;cursor:pointer;">초기화</button>
+  </div>
+
+  <div id="bestCard" class="best-card" onclick="openBest()">
+    <div class="best-top">
+      <span class="best-label">가장 가까운 혜택 주차장</span>
+      <span id="bestDist" class="best-dist"></span>
+    </div>
+    <div id="bestTitle" class="best-title"></div>
+    <div id="bestAddr" class="best-addr"></div>
+    <div class="best-meta">
+      <span id="bestHours" class="best-pill"></span>
+      <span id="bestStaff" class="best-pill"></span>
+    </div>
+  </div>
+
+  <div class="section-title">
+    <span id="listTitle">전체 혜택 주차장 (32곳)</span>
+    <span>핀·카드 누르면 운영시간/유의사항</span>
+  </div>
+  <div id="list" class="list"></div>
+</main>
+
+<!-- 주차장 상세 바텀시트 -->
+<div id="detailModal" class="overlay" onclick="if(event.target===this) closeModal('detailModal')">
+  <div class="sheet">
+    <div class="grabber"></div>
+    <div class="sheet-head">
+      <div>
+        <div id="mBadges" class="tags" style="margin-bottom:6px;"></div>
+        <h2 id="mTitle" class="sheet-title"></h2>
+      </div>
+      <button class="btn-close" onclick="closeModal('detailModal')">✕</button>
+    </div>
+    <div class="info-box">
+      <div class="info-row"><span class="info-k">주소</span><span id="mAddr" class="info-v"></span></div>
+      <div class="info-row"><span class="info-k">운영시간</span><span id="mHours" class="info-v"></span></div>
+      <div class="info-row"><span class="info-k">정산 방식</span><span id="mStaff" class="info-v"></span></div>
+      <div id="mDistRow" class="info-row" style="display:none;"><span class="info-k">목적지까지 거리</span><span id="mDist" class="info-v" style="color:#0046FF;"></span></div>
+    </div>
+    <div class="note-block">
+      <h3>⚠️ 이 주차장 유의사항</h3>
+      <ul id="mNotes"></ul>
+    </div>
+    <div class="common-block">
+      <h3>💳 신한카드 RPM+ Platinum# 공통 기준</h3>
+      <ul>
+        <li>전월(1일~말일) 일시불+할부 <strong>30만 원 이상</strong> 이용 시 제공 (신규 발급월 불가)</li>
+        <li>횟수: <strong>일 1회, 월 3회</strong> (본인·가족카드 및 Platinum# 계열 통합)</li>
+        <li>출차 시 카드 제시 또는 무인정산기에서 무료주차 정상 승인 확인 필수 (요청 없이 결제 시 요금 청구)</li>
+        <li>만차 시 무료주차 제공 불가</li>
+      </ul>
+    </div>
+    <div class="map-btns">
+      <a id="btnNaver" class="map-btn naver" target="_blank" rel="noopener">네이버 지도</a>
+      <a id="btnKakao" class="map-btn kakao" target="_blank" rel="noopener">카카오맵</a>
+      <a id="btnApple" class="map-btn apple" target="_blank" rel="noopener">Apple 지도</a>
+    </div>
+    <button class="copy-btn" onclick="copyAddress()">주소 복사하기</button>
+  </div>
+</div>
+
+<!-- 공통 유의사항 모달 -->
+<div id="commonModal" class="overlay" onclick="if(event.target===this) closeModal('commonModal')">
+  <div class="sheet">
+    <div class="grabber"></div>
+    <div class="sheet-head">
+      <h2 class="sheet-title">RPM+ Platinum# 주차 공통 유의사항</h2>
+      <button class="btn-close" onclick="closeModal('commonModal')">✕</button>
+    </div>
+    <div class="common-block">
+      <h3>✅ 무료주차 이용 조건</h3>
+      <ul>
+        <li><strong>전월 실적:</strong> 직전월(1일~말일) 신한카드 RPM+ Platinum# 이용금액(일시불+할부) <strong>30만 원 이상</strong></li>
+        <li>신규 발급월에는 직전월 실적이 없어 무료주차 이용 불가</li>
+        <li><strong>이용 한도:</strong> 일 1회, 월 3회까지 (본인/가족카드 통합, Platinum# 계열 통합)</li>
+        <li><strong>이용 방법:</strong> 출차 시 카드 제시 또는 무인정산기 정상 승인 확인 후 적용</li>
+        <li>주차장이 만차일 경우 부득이 무료주차 서비스 제공 불가</li>
+      </ul>
+    </div>
+    <div class="note-block">
+      <h3>⏰ 출차 마감 시간 차이 (중요)</h3>
+      <ul>
+        <li><strong>주요중심가 주차장:</strong> 당일 입차 후 주차장별 당일 업무 종료시간까지 (24시간 운영이어도 <strong>당일 밤 12시 전 출차</strong> 시 무료, 초과 시 현장 요금 부과)</li>
+        <li><strong>KTX 역사 주차장 (24시간 운영):</strong> <strong>입차 시각 기준 24시간</strong> 1일 무료 (예: 오늘 오후 2시 입차 → 내일 오후 2시 전 출차 시 무료)</li>
+        <li>KTX 역사 지정 주차장 외 주변 공영주차장은 서비스 불가</li>
+      </ul>
+    </div>
+    <div class="info-box">
+      <div style="font-size:13.5px;font-weight:800;margin-bottom:6px;">✈️ 참고: 인천공항 발렛파킹 무료 (월 3회)</div>
+      <div style="font-size:13px;color:#374151;">전월 30만 원 이상 시 발렛파킹 무료(주차비는 회원 부담, 사전 예약 권장, Platinum 이상 타 카드와 통합 월 3회).</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const PARKINGS = [{"name": "명동 눈스퀘어(타워)", "category": "주요중심가", "region": "서울", "addr": "서울 중구 명동길 14", "hours": "24시간 (단, 무료주차는 당일 24:00 전 출차분)", "is24h": true, "staff": "유/무인 가능 (기계식 타워)", "notes": ["타워식 주차장: 전장 4,895mm · 전폭 1,865mm · 전고 1,490mm 이하 차량만 주차 가능합니다.", "기준 미충족 차량이나 파손 위험 차량은 타워 주차가 제한됩니다.", "노면에 주차 공간이 있을 경우에는 타워 출입 불가 차량도 이용 가능합니다.", "24시간 운영되지만 KTX역사가 아니므로 입차 당일 밤 12시(24:00) 전까지 출차해야 무료 적용됩니다."], "lat": 37.563441, "lng": 126.98291}, {"name": "트윈트리타워 주차장", "category": "주요중심가", "region": "서울", "addr": "서울 종로구 율곡로 6(중학동 14)", "hours": "09:00 ~ 24:00", "is24h": false, "staff": "무인정산 가능", "notes": ["당일 입차 후 당일 업무 종료시간(24:00) 전까지 출차 시 1일 무료주차가 적용됩니다.", "출차 시 무인정산기에서 신한카드 RPM+ Platinum# 정상 승인 확인이 필요합니다."], "lat": 37.575454, "lng": 126.979776}, {"name": "성동공고 공영주차장", "category": "주요중심가", "region": "서울", "addr": "서울 중구 다산로 290", "hours": "24시간 (단, 무료주차는 당일 24:00 전 출차분)", "is24h": true, "staff": "무인/유인", "notes": ["24시간 운영되지만 입차 당일 밤 12시(24:00) 전까지 출차해야 1일 무료 적용됩니다.", "동대문·신당역 인근 이용 시 편리합니다."], "lat": 37.569363, "lng": 127.017282}, {"name": "SC제일은행(본점)", "category": "주요중심가", "region": "서울", "addr": "서울 종로구 종로 47", "hours": "24시간 (단, 무료주차는 당일 24:00 전 출차분)", "is24h": true, "staff": "유/무인 가능", "notes": ["24시간 운영되지만 입차 당일 밤 12시(24:00) 전까지 출차해야 1일 무료 적용됩니다.", "주말에는 은행 본점 내부 출입문이 닫힐 수 있어 외부/후문 동선을 확인하세요."], "lat": 37.571125, "lng": 126.982439}, {"name": "오라카이 스위츠", "category": "주요중심가", "region": "서울", "addr": "서울 종로구 인사동4길 18", "hours": "08:00 ~ 23:00", "is24h": false, "staff": "유/무인 (호텔 주차장)", "notes": ["구 프레이져 스위츠(인사동). 당일 업무 종료(23:00) 전까지 출차해야 무료 적용됩니다.", "인사동 골목 일방통행 구간이 많아 진입 전 내비게이션 안내를 꼭 확인하세요."], "lat": 37.572995, "lng": 126.987337}, {"name": "센트럴플레이스", "category": "주요중심가", "region": "서울", "addr": "서울 중구 서소문로 50", "hours": "05:00 ~ 24:00", "is24h": false, "staff": "유/무인 가능", "notes": ["충정로역·서소문 인근. 당일 24:00 전 출차 시 무료 적용됩니다.", "무인정산기에서 카드 인식이 안 될 경우 정산기 호출 버튼으로 직원 확인을 요청하세요."], "lat": 37.560917, "lng": 126.967029}, {"name": "오피시아", "category": "주요중심가", "region": "서울", "addr": "서울 종로구 새문안로 92(지하2~5층)", "hours": "07:00 ~ 23:00", "is24h": false, "staff": "유/무인 (지하5층 요원 안내)", "notes": ["광화문역 인근(지하 2~5층). 당일 23:00 전 출차 시 무료 적용됩니다.", "지하 5층 주차 요원 지시에 따라 리프트 또는 노면 주차를 이용하세요.", "진출입 램프가 좁은 편이니 회전 시 주의하세요."], "lat": 37.5697, "lng": 126.974908}, {"name": "영등포 주차장", "category": "주요중심가", "region": "서울", "addr": "서울 영등포구 영등포동4가 442-2", "hours": "24시간 (단, 무료주차는 당일 24:00 전 출차분)", "is24h": true, "staff": "유/무인", "notes": ["타임스퀘어·영등포역 인근. 입차 당일 밤 12시(24:00) 전 출차 시 1일 무료 적용됩니다.", "주말에는 인근 백화점 진입 대기줄과 겹칠 수 있으니 입구 안내를 확인하세요."], "lat": 37.516102, "lng": 126.902963}, {"name": "사당현진빌딩", "category": "주요중심가", "region": "서울", "addr": "서울 동작구 동작대로 59", "hours": "평일(월~금) 07:00 ~ 23:00", "is24h": false, "staff": "유/무인 (하이파킹/RAK사당)", "notes": ["구 RAK사당(사당역 인근). 평일 07:00~23:00 운영하며 당일 업무 종료 전 출차해야 합니다.", "주말·공휴일 운영 여부는 현장 안내를 확인하세요."], "lat": 37.482011, "lng": 126.981487}, {"name": "선릉역 대우아이빌 주차장", "category": "주요중심가", "region": "서울", "addr": "서울 강남구 테헤란로64길 9", "hours": "00:00 ~ 23:00", "is24h": false, "staff": "유/무인", "notes": ["선릉역 인근. 당일 23:00 전 출차 시 1일 무료 적용됩니다.", "종료시간(23:00) 이후 출차 시 현장 기준 요금이 부과됩니다."], "lat": 37.504495, "lng": 127.051585}, {"name": "대치타워 주차장", "category": "주요중심가", "region": "서울", "addr": "서울 강남구 테헤란로 424", "hours": "08:00 ~ 21:00", "is24h": false, "staff": "유/무인", "notes": ["삼성역·선릉역 사이 테헤란로 위치. 운영 종료시간(21:00)이 이른 편이므로 주의하세요.", "21:00 초과 주차 시 현장 요금이 부과됩니다."], "lat": 37.505493, "lng": 127.053468}, {"name": "아이콘삼성", "category": "주요중심가", "region": "서울", "addr": "서울 강남구 삼성로 511", "hours": "24시간 (단, 무료주차는 당일 24:00 전 출차분)", "is24h": true, "staff": "유인 주차장 (*)", "notes": ["유인 주차장(*): 출차 시 주차 관리원에게 신한카드 RPM+ Platinum# 무료주차를 요청하세요.", "코엑스·삼성중앙역 인근. 24시간 운영이나 당일 밤 12시(24:00) 전 출차 시 무료 적용됩니다."], "lat": 37.507664, "lng": 127.055578}, {"name": "탑빌딩", "category": "주요중심가", "region": "경기", "addr": "경기도 성남시 분당구 성남대로926번길 10", "hours": "평일 08:00~22:00 / 주말·휴일 11:00~15:00", "is24h": false, "staff": "유/무인", "notes": ["야탑역 인근. 평일(22:00)과 주말·공휴일(11:00~15:00) 운영시간이 크게 다르니 꼭 확인하세요.", "업무 종료시간 초과 시 주차장 기준 요금이 부과됩니다."], "lat": 37.412573, "lng": 127.129892}, {"name": "우리들공원주차장", "category": "주요중심가", "region": "대전·충청", "addr": "대전 중구 중앙로138번길 30", "hours": "24시간 (단, 무료주차는 당일 24:00 전 출차분)", "is24h": true, "staff": "유/무인", "notes": ["대전 은행동·성심당 본점 인근. 24시간 운영이나 당일 밤 12시(24:00) 전 출차 시 1일 무료 적용됩니다.", "주말 낮 시간대 성심당 방문객으로 만차 가능성이 높습니다(만차 시 이용 불가)."], "lat": 36.327425, "lng": 127.425458}, {"name": "대전 둔산코어타워", "category": "주요중심가", "region": "대전·충청", "addr": "대전 서구 대덕대로185번길 46", "hours": "24시간 (단, 무료주차는 당일 24:00 전 출차분)", "is24h": true, "staff": "유/무인", "notes": ["대전 둔산동·갤러리아 타임월드 인근.", "24시간 운영되지만 입차 당일 밤 12시(24:00) 전까지 출차해야 무료 적용됩니다."], "lat": 36.351116, "lng": 127.37523}, {"name": "천안아산 미소지움", "category": "주요중심가", "region": "대전·충청", "addr": "충남 아산시 배방읍 희망로46번길 11-9", "hours": "24시간 (단, 무료주차는 당일 24:00 전 출차분)", "is24h": true, "staff": "유/무인", "notes": ["KTX 천안아산역 인근 중심가 주차장.", "주의: KTX역사 전용 주차장이 아니므로 24시간 기준이 아니라 당일 밤 12시(24:00) 전 출차 기준이 적용됩니다."], "lat": 36.789191, "lng": 127.103451}, {"name": "CGV 대구한일극장", "category": "주요중심가", "region": "대구·경북", "addr": "대구 중구 동성로 39", "hours": "24시간 (단, 무료주차는 당일 24:00 전 출차분)", "is24h": true, "staff": "유인 주차장 (*)", "notes": ["유인 주차장(*): 출차 시 주차 요원에게 신한카드 RPM+ Platinum# 무료주차 적용을 요청하세요.", "대구 동성로·중앙로역 인근. 당일 밤 12시(24:00) 전 출차 시 무료 적용됩니다."], "lat": 35.870415, "lng": 128.595324}, {"name": "대구 삼성생명", "category": "주요중심가", "region": "대구·경북", "addr": "대구 중구 달구벌대로 2095", "hours": "24시간 (단, 무료주차는 당일 24:00 전 출차분)", "is24h": true, "staff": "유/무인", "notes": ["대구 반월당역 인근.", "24시간 운영이나 당일 밤 12시(24:00) 전 출차 시 1일 무료 적용됩니다."], "lat": 35.866318, "lng": 128.592799}, {"name": "파라다이스주차장", "category": "주요중심가", "region": "대구·경북", "addr": "경북 포항시 남구 중흥로70번길 7-7", "hours": "24시간 (단, 무료주차는 당일 24:00 전 출차분)", "is24h": true, "staff": "유/무인", "notes": ["포항 남구 상도동·포항시외버스터미널 인근.", "당일 밤 12시(24:00) 전 출차 시 1일 무료 적용됩니다."], "lat": 36.01201, "lng": 129.350342}, {"name": "NC백화점 해운대점", "category": "주요중심가", "region": "부산·울산", "addr": "부산 해운대구 해운대로 813", "hours": "24시간 (단, 무료주차는 당일 24:00 전 출차분)", "is24h": true, "staff": "유/무인", "notes": ["부산 장산역 인근.", "당일 밤 12시(24:00) 전 출차 시 1일 무료 적용됩니다."], "lat": 35.170609, "lng": 129.177076}, {"name": "롯데월드 어드벤처 부산", "category": "주요중심가", "region": "부산·울산", "addr": "부산 기장군 기장읍 동부산관광로 42", "hours": "09:30 ~ 20:00 (파크 운영 변동 가능)", "is24h": false, "staff": "유/무인", "notes": ["기장 오시리아 관광단지 내.", "당일 업무 종료시간 전 출차 시 무료 적용되며, 파크 폐장 시간에 따라 운영시간이 달라질 수 있습니다."], "lat": 35.196113, "lng": 129.213345}, {"name": "로얄팰리스 서면 1차, 2차", "category": "주요중심가", "region": "부산·울산", "addr": "부산 부산진구 신천대로65번길 9", "hours": "24시간 (단, 무료주차는 당일 24:00 전 출차분)", "is24h": true, "staff": "유/무인", "notes": ["부산 서면·부암역 인근.", "24시간 운영이나 당일 밤 12시(24:00) 전 출차 시 1일 무료 적용됩니다."], "lat": 35.149803, "lng": 129.058293}, {"name": "농협은행 성남동지점", "category": "주요중심가", "region": "부산·울산", "addr": "울산 중구 새즈믄해거리 28(성남동)", "hours": "01:00 ~ 24:00", "is24h": false, "staff": "무인정산 가능", "notes": ["울산 중구 성남동 젊음의거리 인근.", "01:00~24:00 운영하며 당일 밤 12시(24:00) 전 출차 시 무료 적용됩니다."], "lat": 35.556359, "lng": 129.320754}, {"name": "금아드림스퀘어", "category": "주요중심가", "region": "부산·울산", "addr": "울산 울주군 삼남읍 도호길 31", "hours": "24시간 (단, 무료주차는 당일 24:00 전 출차분)", "is24h": true, "staff": "유/무인", "notes": ["KTX 울산역 인근 상가 건물.", "주의: KTX역사 주차장이 아닌 중심가 주차장이므로 당일 밤 12시(24:00) 전 출차 기준이 적용됩니다."], "lat": 35.548608, "lng": 129.139212}, {"name": "전주고속버스터미널", "category": "주요중심가", "region": "호남", "addr": "전북 전주시 덕진구 가리내로 70", "hours": "24시간 (단, 무료주차는 당일 24:00 전 출차분)", "is24h": true, "staff": "유/무인", "notes": ["전주 금암동 고속버스터미널.", "당일 밤 12시(24:00) 전 출차 시 1일 무료 적용됩니다."], "lat": 35.834494, "lng": 127.129284}, {"name": "서울역 2주차장(지하공항철도)", "category": "KTX역사", "region": "KTX역사", "addr": "서울 용산구 청파로 378(지하공항철도)", "hours": "24시간 (입차 시각 기준 24시간 무료)", "is24h": true, "staff": "무인정산 가능", "notes": ["KTX역사 24시간 주차장 특례: 입차 시각부터 24시간 기준 1일 무료 (예: 오늘 14시 입차 → 내일 14시 전 출차).", "상기 지정 KTX역사 주차장 외 주변 공영주차장은 서비스가 불가합니다.", "이용객이 많아 평일 낮·주말에는 만차인 경우가 잦습니다."], "lat": 37.549118, "lng": 126.970484}, {"name": "서울역 1롯데마트 주차장", "category": "KTX역사", "region": "KTX역사", "addr": "서울 중구 한강대로 405", "hours": "24시간 (입차 시각 기준 24시간 무료)", "is24h": true, "staff": "무인정산 가능", "notes": ["KTX역사 24시간 주차장 특례: 입차 시각부터 24시간 기준 1일 무료 적용.", "롯데마트 영업시간(10~23시 등)과 별개로 주차장 24시간 운영 시 24시간 기준이 적용되나, 출입구 개방 여부는 현장 안내를 확인하세요.", "주변 공영주차장은 서비스 불가합니다."], "lat": 37.55473, "lng": 126.969526}, {"name": "광명역 C주차장", "category": "KTX역사", "region": "KTX역사", "addr": "경기 광명시 광명역로 21", "hours": "24시간 (입차 시각 기준 24시간 무료)", "is24h": true, "staff": "유/무인", "notes": ["KTX역사 24시간 주차장 특례: 입차 시각부터 24시간 기준 1일 무료 적용.", "내비게이션 검색 시 C주차장(광명역로 21/51 일대) 표지판을 확인하고 진입하세요.", "광명역 내 다른 주차장(A/B 등) 및 주변 공영주차장은 혜택 불가합니다."], "lat": 37.416364, "lng": 126.884877}, {"name": "광명역 D주차장", "category": "KTX역사", "region": "KTX역사", "addr": "경기 광명시 서독로 392", "hours": "24시간 (입차 시각 기준 24시간 무료)", "is24h": true, "staff": "유/무인", "notes": ["KTX역사 24시간 주차장 특례: 입차 시각부터 24시간 기준 1일 무료 적용.", "광명역 C·D주차장만 해당되며 주변 공영주차장은 서비스 불가합니다."], "lat": 37.413399, "lng": 126.883146}, {"name": "울산역 B주차장", "category": "KTX역사", "region": "KTX역사", "addr": "울산 울주군 삼남읍 울산역로 177", "hours": "24시간 (입차 시각 기준 24시간 무료)", "is24h": true, "staff": "유/무인", "notes": ["KTX역사 24시간 주차장 특례: 입차 시각부터 24시간 기준 1일 무료 적용.", "울산역 B주차장만 해당되며 주변 공영주차장은 서비스 불가합니다."], "lat": 35.551499, "lng": 129.138632}, {"name": "부산역 초량동 주차장", "category": "KTX역사", "region": "KTX역사", "addr": "부산 동구 초량동 285-2", "hours": "24시간 (입차 시각 기준 24시간 무료)", "is24h": true, "staff": "무인정산 가능", "notes": ["KTX역사 24시간 주차장 특례: 입차 시각부터 24시간 기준 1일 무료 적용.", "부산역 선상/북항 등 타 주차장 및 주변 공영주차장은 서비스 불가합니다."], "lat": 35.119412, "lng": 129.038496}, {"name": "광주송정역 후면 주차장", "category": "KTX역사", "region": "KTX역사", "addr": "광주광역시 광산구 송정동 945", "hours": "24시간 (입차 시각 기준 24시간 무료)", "is24h": true, "staff": "유/무인", "notes": ["KTX역사 24시간 주차장 특례: 입차 시각부터 24시간 기준 1일 무료 적용.", "광주송정역 후면 주차장만 해당되며 주변 공영주차장은 서비스 불가합니다."], "lat": 35.136398, "lng": 126.787864}];
+const PRESETS = [{"name": "명동 / 을지로입구", "lat": 37.5636, "lng": 126.9827, "tags": "명동역 을지로 롯데백화점 신세계백화점 남대문"}, {"name": "광화문 / 종로 / 경복궁", "lat": 37.5716, "lng": 126.9769, "tags": "광화문역 시청역 종각역 인사동 안국역 삼청동 북촌"}, {"name": "서울역 / 용산", "lat": 37.5547, "lng": 126.9707, "tags": "서울역 공항철도 KTX 남영 숙대입구 용산역"}, {"name": "강남역 / 테헤란로", "lat": 37.4979, "lng": 127.0276, "tags": "강남역 역삼역 신논현 교대 서초"}, {"name": "코엑스 / 삼성역 / 선릉역", "lat": 37.5088, "lng": 127.06, "tags": "코엑스 삼성역 선릉역 포스코사거리 대치동 봉은사 잠실"}, {"name": "여의도 / 영등포 / 문래", "lat": 37.5172, "lng": 126.9033, "tags": "영등포역 타임스퀘어 더현대 여의도 문래 신도림"}, {"name": "사당 / 이수 / 방배", "lat": 37.4765, "lng": 126.9816, "tags": "사당역 이수역 총신대입구 방배 남현동"}, {"name": "동대문 / 신당 / 왕십리", "lat": 37.5659, "lng": 127.0094, "tags": "DDP 동대문역사문화공원 신당역 청구 약수 왕십리"}, {"name": "충정로 / 서대문 / 신촌", "lat": 37.5601, "lng": 126.9637, "tags": "충정로역 서대문역 아현 신촌 홍대 마포 공덕"}, {"name": "수원 / 수원시청 / 영통", "lat": 37.2636, "lng": 127.0286, "tags": "수원시청 수원역 인계동 광교 호매실 팔달구 영통"}, {"name": "분당 / 판교 / 야탑 / 서현", "lat": 37.4114, "lng": 127.1286, "tags": "야탑역 서현역 판교역 정자역 성남 모란"}, {"name": "광명 / 안양 / 금천", "lat": 37.4162, "lng": 126.8849, "tags": "광명역 코스트코 이케아 안양 범계 평촌"}, {"name": "대전 성심당 / 중앙로", "lat": 36.3277, "lng": 127.4273, "tags": "성심당 은행동 중앙로역 대전역 대흥동"}, {"name": "대전 둔산 / 정부청사", "lat": 36.3519, "lng": 127.3782, "tags": "둔산동 타임월드 갤러리아 정부청사역 시청"}, {"name": "천안아산 / 불당", "lat": 36.7944, "lng": 127.1045, "tags": "천안아산역 아산역 배방 불당동"}, {"name": "대구 동성로 / 반월당", "lat": 35.8693, "lng": 128.5945, "tags": "동성로 반월당역 중앙로역 대구역 약령시"}, {"name": "포항 / 포항터미널", "lat": 36.012, "lng": 129.349, "tags": "포항시외버스터미널 죽도시장 영일대"}, {"name": "부산 서면 / 부전", "lat": 35.1578, "lng": 129.06, "tags": "서면역 전포동 부전역 부산시민공원"}, {"name": "부산 해운대 / 센텀", "lat": 35.1631, "lng": 129.1635, "tags": "해운대 장산역 해수욕장 센텀시티 벡스코 광안리"}, {"name": "부산 기장 / 오시리아", "lat": 35.1961, "lng": 129.2133, "tags": "기장 롯데월드 동부산 아울렛 송정"}, {"name": "부산역 / 남포동 / 초량", "lat": 35.1152, "lng": 129.0422, "tags": "부산역 초량 남포동 자갈치 영도"}, {"name": "울산 성남동 / 태화강", "lat": 35.5546, "lng": 129.3204, "tags": "성남동 태화강 삼산동 울산중구"}, {"name": "울산역 / 언양", "lat": 35.5515, "lng": 129.1386, "tags": "KTX울산역 삼남읍 언양"}, {"name": "전주 / 한옥마을 / 고속터미널", "lat": 35.8345, "lng": 127.1293, "tags": "전주고속버스터미널 전북대 한옥마을 객사"}, {"name": "광주 / 광주송정역", "lat": 35.1376, "lng": 126.7912, "tags": "광주송정역 상무지구 첨단 송정동"}];
+
+let currentFilter = 'all';
+let targetPoint = null;
+let bestParking = null;
+let selectedAddr = '';
+let map = null;
+let markerLayer = null;
+
+function initMap() {
+  if (typeof L === 'undefined') {
+    document.getElementById('mapWrap').style.display = 'none';
+    return;
+  }
+  map = L.map('map', { zoomControl: true }).setView([37.55, 126.98], 11);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; OpenStreetMap &copy; CARTO',
+    maxZoom: 19
+  }).addTo(map);
+  markerLayer = L.layerGroup().addTo(map);
+}
+
+function toggleMapSize() {
+  const el = document.getElementById('map');
+  const btn = document.getElementById('mapSizeBtn');
+  const expanded = el.classList.toggle('expanded');
+  btn.textContent = expanded ? '지도 작게' : '지도 크게';
+  if (map) setTimeout(() => map.invalidateSize(), 220);
+}
+
+function updateMapMarkers(items) {
+  if (!map || !markerLayer) return;
+  markerLayer.clearLayers();
+
+  const bounds = [];
+  items.forEach((p, idx) => {
+    const isBest = targetPoint && idx === 0;
+    const isKtx = p.category === 'KTX역사';
+    const color = isBest ? '#F97316' : (isKtx ? '#059669' : '#0046FF');
+    const radius = isBest ? 11 : 7;
+
+    const m = L.circleMarker([p.lat, p.lng], {
+      radius,
+      color: '#FFFFFF',
+      weight: isBest ? 3 : 2,
+      fillColor: color,
+      fillOpacity: 0.95
+    }).addTo(markerLayer);
+
+    if (isBest) {
+      m.bindTooltip(`최단 ${p.name} (${fmtDist(p.dist)})`, { permanent: true, direction: 'top', offset: [0, -8] });
+    } else {
+      m.bindTooltip(p.name, { direction: 'top' });
+    }
+    m.on('click', () => openDetail(p.name));
+    bounds.push([p.lat, p.lng]);
+  });
+
+  if (targetPoint) {
+    const tm = L.circleMarker([targetPoint.lat, targetPoint.lng], {
+      radius: 9,
+      color: '#FFFFFF',
+      weight: 3,
+      fillColor: '#DC2626',
+      fillOpacity: 1
+    }).addTo(markerLayer);
+    tm.bindTooltip(`목적지: ${targetPoint.name}`, { permanent: true, direction: 'bottom', offset: [0, 8] });
+
+    if (items.length > 0) {
+      const nearest = items[0];
+      L.polyline([[targetPoint.lat, targetPoint.lng], [nearest.lat, nearest.lng]], {
+        color: '#F97316',
+        weight: 3,
+        dashArray: '6, 6'
+      }).addTo(markerLayer);
+      map.fitBounds([[targetPoint.lat, targetPoint.lng], [nearest.lat, nearest.lng]], { padding: [55, 55], maxZoom: 15 });
+    } else {
+      map.setView([targetPoint.lat, targetPoint.lng], 13);
+    }
+  } else if (bounds.length > 0) {
+    map.fitBounds(bounds, { padding: [25, 25], maxZoom: 12 });
+  }
+}
+
+const qInput = document.getElementById('q');
+const clearBtn = document.getElementById('clearBtn');
+
+qInput.addEventListener('input', () => {
+  clearBtn.style.display = qInput.value.trim() ? 'flex' : 'none';
+});
+qInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    qInput.blur();
+    runSearch();
+  }
+});
+
+document.getElementById('chips').addEventListener('click', (e) => {
+  const btn = e.target.closest('.chip');
+  if (!btn) return;
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  btn.classList.add('active');
+  currentFilter = btn.dataset.filter;
+  render();
+});
+
+function haversineKm(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2 +
+            Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function fmtDist(km) {
+  if (km < 1) return Math.round(km * 1000) + 'm';
+  return km.toFixed(1) + 'km';
+}
+
+function findLocalMatch(query) {
+  const q = query.trim().toLowerCase().replace(/\s+/g, '');
+  if (!q) return null;
+  for (const p of PARKINGS) {
+    const hay = (p.name + p.addr).toLowerCase().replace(/\s+/g, '');
+    if (hay.includes(q)) return { name: p.name, lat: p.lat, lng: p.lng, source: '직접 일치' };
+  }
+  for (const pr of PRESETS) {
+    const hay = (pr.name + pr.tags).toLowerCase().replace(/\s+/g, '');
+    if (hay.includes(q) || q.includes(pr.name.split('/')[0].trim().toLowerCase().replace(/\s+/g, ''))) {
+      return { name: pr.name, lat: pr.lat, lng: pr.lng, source: '내장 지명' };
+    }
+  }
+  const tokens = query.trim().toLowerCase().split(/\s+/);
+  for (const pr of PRESETS) {
+    const hay = (pr.name + ' ' + pr.tags).toLowerCase();
+    if (tokens.some(t => t.length >= 2 && hay.includes(t))) {
+      return { name: pr.name, lat: pr.lat, lng: pr.lng, source: '지명 매칭' };
+    }
+  }
+  return null;
+}
+
+async function geocodeOnline(query) {
+  try {
+    const url = 'https://photon.komoot.io/api/?q=' + encodeURIComponent(query + ' 대한민국') + '&limit=3';
+    const res = await fetch(url, { signal: AbortSignal.timeout(4500) });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.features && data.features.length > 0) {
+        const f = data.features[0];
+        const [lng, lat] = f.geometry.coordinates;
+        if (lat > 33 && lat < 39 && lng > 124 && lng < 132) {
+          return { name: f.properties.name || query, lat, lng, source: '지도 검색' };
+        }
+      }
+    }
+  } catch (_) {}
+  try {
+    const url = 'https://nominatim.openstreetmap.org/search?format=json&countrycodes=kr&limit=1&q=' + encodeURIComponent(query);
+    const res = await fetch(url, { signal: AbortSignal.timeout(4500) });
+    if (res.ok) {
+      const arr = await res.json();
+      if (arr && arr.length > 0) {
+        return { name: query, lat: parseFloat(arr[0].lat), lng: parseFloat(arr[0].lon), source: '지도 검색' };
+      }
+    }
+  } catch (_) {}
+  return null;
+}
+
+async function runSearch() {
+  const query = qInput.value.trim();
+  if (!query) { resetSort(); return; }
+  showStatus(`"${query}" 위치 찾는 중...`);
+  let found = await geocodeOnline(query);
+  if (!found) found = findLocalMatch(query);
+  if (!found) {
+    showStatus(`"${query}" 위치를 찾지 못했어요. 역 이름이나 구/동 이름으로 검색해 보세요.`);
+    targetPoint = null;
+    render();
+    return;
+  }
+  targetPoint = found;
+  currentFilter = 'all';
+  document.querySelectorAll('.chip').forEach(c => c.classList.toggle('active', c.dataset.filter === 'all'));
+  showStatus(`목적지 "${found.name}" 기준 가까운 순`);
+  render();
+}
+
+function useMyLocation() {
+  if (!navigator.geolocation) {
+    alert('이 브라우저에서는 위치 기능을 지원하지 않습니다.');
+    return;
+  }
+  showStatus('내 현재 위치 확인 중...');
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      targetPoint = { name: '내 현재 위치', lat: pos.coords.latitude, lng: pos.coords.longitude, source: 'GPS' };
+      currentFilter = 'all';
+      document.querySelectorAll('.chip').forEach(c => c.classList.toggle('active', c.dataset.filter === 'all'));
+      showStatus('내 현재 위치 기준 가까운 순');
+      render();
+    },
+    () => { showStatus('위치 권한이 차단되었거나 현재 환경에서 제한됐습니다. 갈 곳을 직접 검색해 주세요.'); },
+    { enableHighAccuracy: true, timeout: 7000 }
+  );
+}
+
+function showStatus(msg) {
+  const banner = document.getElementById('statusBanner');
+  document.getElementById('statusText').textContent = msg;
+  banner.classList.add('show');
+}
+
+function clearSearch() {
+  qInput.value = '';
+  clearBtn.style.display = 'none';
+  resetSort();
+}
+
+function resetSort() {
+  targetPoint = null;
+  bestParking = null;
+  document.getElementById('statusBanner').classList.remove('show');
+  document.getElementById('bestCard').classList.remove('show');
+  render();
+}
+
+function render() {
+  let items = PARKINGS.map(p => {
+    const dist = targetPoint ? haversineKm(targetPoint.lat, targetPoint.lng, p.lat, p.lng) : null;
+    return { ...p, dist };
+  });
+  if (currentFilter !== 'all') items = items.filter(p => p.region === currentFilter);
+  if (targetPoint) {
+    items.sort((a, b) => a.dist - b.dist);
+    bestParking = items[0] || null;
+    const bestEl = document.getElementById('bestCard');
+    if (bestParking) {
+      document.getElementById('bestDist').textContent = '약 ' + fmtDist(bestParking.dist);
+      document.getElementById('bestTitle').textContent = bestParking.name;
+      document.getElementById('bestAddr').textContent = bestParking.addr;
+      document.getElementById('bestHours').textContent = '🕒 ' + bestParking.hours;
+      document.getElementById('bestStaff').textContent = '🚘 ' + bestParking.staff;
+      bestEl.classList.add('show');
+    } else bestEl.classList.remove('show');
+  } else {
+    document.getElementById('bestCard').classList.remove('show');
+  }
+
+  document.getElementById('listTitle').textContent =
+    (targetPoint ? '거리순 전체 목록' : (currentFilter === 'all' ? '전체 혜택 주차장' : currentFilter + ' 주차장')) +
+    ` (${items.length}곳)`;
+
+  document.getElementById('list').innerHTML = items.map((p) => {
+    const ktxTag = p.category === 'KTX역사' ? '<span class="tag ktx">KTX 24시간 특례</span>' : '<span class="tag">' + p.region + '</span>';
+    const staffWarn = (p.staff.includes('유인') || p.staff.includes('타워')) ? '<span class="tag warn">' + p.staff + '</span>' : '<span class="tag">' + p.staff + '</span>';
+    const distBadge = p.dist !== null ? `<span class="dist-badge">약 ${fmtDist(p.dist)}</span>` : '';
+    return `
+      <div class="card" onclick='openDetail(${JSON.stringify(p.name)})'>
+        <div class="card-head"><div class="card-title">${p.name}</div>${distBadge}</div>
+        <div class="card-addr">${p.addr}</div>
+        <div class="tags">${ktxTag}<span class="tag">🕒 ${p.hours.replace(' (단, 무료주차는 당일 24:00 전 출차분)', ' · 당일 24시 전 출차').replace(' (입차 시각 기준 24시간 무료)', ' · 입차후 24h')}</span>${staffWarn}</div>
+      </div>`;
+  }).join('');
+
+  updateMapMarkers(items);
+}
+
+function openBest() { if (bestParking) openDetail(bestParking.name); }
+
+function openDetail(name) {
+  const p = PARKINGS.find(x => x.name === name);
+  if (!p) return;
+  selectedAddr = p.addr;
+  if (map) map.panTo([p.lat, p.lng]);
+
+  document.getElementById('mBadges').innerHTML = (p.category === 'KTX역사'
+    ? '<span class="tag ktx">KTX 역사 주차장</span>'
+    : '<span class="tag">' + p.category + ' · ' + p.region + '</span>') + `<span class="tag">${p.staff}</span>`;
+  document.getElementById('mTitle').textContent = p.name;
+  document.getElementById('mAddr').textContent = p.addr;
+  document.getElementById('mHours').textContent = p.hours;
+  document.getElementById('mStaff').textContent = p.staff;
+
+  const distRow = document.getElementById('mDistRow');
+  if (targetPoint) {
+    const d = haversineKm(targetPoint.lat, targetPoint.lng, p.lat, p.lng);
+    document.getElementById('mDist').textContent = `${targetPoint.name} 기준 약 ${fmtDist(d)} (직선거리)`;
+    distRow.style.display = 'flex';
+  } else distRow.style.display = 'none';
+
+  document.getElementById('mNotes').innerHTML = p.notes.map(n => `<li>${n}</li>`).join('');
+  const qEnc = encodeURIComponent(p.addr), nEnc = encodeURIComponent(p.name);
+  document.getElementById('btnNaver').href = `https://map.naver.com/v5/search/${qEnc}`;
+  document.getElementById('btnKakao').href = `https://map.kakao.com/link/map/${nEnc},${p.lat},${p.lng}`;
+  document.getElementById('btnApple').href = `https://maps.apple.com/?q=${nEnc}&ll=${p.lat},${p.lng}`;
+  document.getElementById('detailModal').classList.add('open');
+}
+
+function openCommonRules() { document.getElementById('commonModal').classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+async function copyAddress() {
+  try { await navigator.clipboard.writeText(selectedAddr); alert('주소가 복사되었습니다: ' + selectedAddr); }
+  catch (_) { prompt('주소를 복사하세요:', selectedAddr); }
+}
+
+initMap();
+render();
+</script>
+</body>
+</html>
